@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlparse
 from jira.client import JIRA
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from datetime import datetime as dt
 
 AD_USER = getuser()
 now = time.time()
@@ -30,7 +31,7 @@ if file_size != 0:
 else:
     print("AD Token")
     AD_TOKEN = getpass(prompt='Enter your AD_TOKEN: ', stream=None) 
-    f = open("token","w+")
+    f = open(token_path,"w+")
     f.write(AD_TOKEN)
     f.close()
     
@@ -40,7 +41,14 @@ try:
     jira = JIRA(options=options, basic_auth=(AD_USER + '@splunk.com', AD_TOKEN))
 except Exception as e:
         raise RuntimeError(f'Unable to logged in into "JIRA" ({e})')
-    
+
+
+def suffix(d):
+    return 'th' if 11<=d<=13 else {1:'st',2:'nd',3:'rd'}.get(d%10, 'th')
+
+def custom_strftime(format, t):
+    return t.strftime(format).replace('{S}', str(t.day) + suffix(t.day))
+
 def find_TO(JIRA_ID):
     query = 'project = "TechOps" AND text ~ "' + JIRA_ID +'"'
     issues = jira.search_issues(query)
@@ -141,6 +149,9 @@ output = []
 
 
 def main():
+    sheet_name= custom_strftime('{S} %b', dt.now())
+    
+
     # If modifying these scopes, delete the file token.json.
     SERVICE_ACCOUNT_FILE = 'keys.json'
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
@@ -151,24 +162,30 @@ def main():
 
     # The ID and range of a sample spreadsheet.
     SAMPLE_SPREADSHEET_ID = '1kq5i69XwvTJBRkLAb47LTkGV-CE3-oxTDPU4Qh5xBBc'
-    SAMPLE_RANGE_NAME = '10th Oct!B2:B'
+    SAMPLE_RANGE_NAME = '16th Oct!B2:B'
 
     service = build('sheets', 'v4', credentials=creds)
 
     # Call the Sheets API
     sheet = service.spreadsheets()
     result = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,
-                                range=SAMPLE_RANGE_NAME).execute()
+                                range=f"{sheet_name}!B2:B").execute()
+    result_H = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,
+                                range=f"{sheet_name}!H2:H").execute()
 
     #print(result.get('values', []))
-
+    k=0
     for i in result['values']:
+
         tmp = getJiraStatus(i[0])
+        if ''.join(result_H['values'][k]).lower() in ("closed", "job-completed"):
+            tmp = ''.join(result_H['values'][k])
         output.append(tmp.split())
+        k=k+1
         #print(output)
         
     #print(output)
     result = sheet.values().update(spreadsheetId=SAMPLE_SPREADSHEET_ID,
-                    range="10th Oct!H2:H", valueInputOption="USER_ENTERED", body={"values":output}).execute()
+                    range=f"{sheet_name}!H2:H", valueInputOption="USER_ENTERED", body={"values":output}).execute()
 
 main()
