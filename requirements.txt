@@ -1,0 +1,9 @@
+urllib3
+dnspython
+http.client
+requests
+wget
+pyyaml
+BeautifulSoup4
+jira
+pyjwt

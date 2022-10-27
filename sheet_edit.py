@@ -1,4 +1,6 @@
 import argparse
+from operator import length_hint
+import sys
 from urllib.error import HTTPError
 from bs4 import BeautifulSoup
 import os
@@ -146,10 +148,11 @@ def conditional_formatting(spreadsheet_id):
 
 
 output = []
-
+#outputt = []
 
 def main():
     sheet_name= custom_strftime('{S} %b', dt.now())
+    print(sheet_name)
     
 
     # If modifying these scopes, delete the file token.json.
@@ -170,22 +173,34 @@ def main():
     sheet = service.spreadsheets()
     result = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,
                                 range=f"{sheet_name}!B2:B").execute()
+    length = len(result['values'])
     result_H = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,
                                 range=f"{sheet_name}!H2:H").execute()
-
+    print(result_H["values"])
     #print(result.get('values', []))
+    if length == len(result_H['values']):
+        if ''.join(result_H['values'][length-1]).lower() == "closed":
+            sys.exit("\n\nScript exited. As its fully updated !!!")
     k=0
+    #print(result['values'])
     for i in result['values']:
-
+        print()
         tmp = getJiraStatus(i[0])
-        if ''.join(result_H['values'][k]).lower() in ("closed", "job-completed"):
-            tmp = ''.join(result_H['values'][k])
+        try:
+            #print(tmp,k,result_H['values'][k])
+            if ''.join(result_H['values'][k]).lower() in ("closed", "job-completed"):
+                tmp = ''.join(result_H['values'][k])
+        except:
+            pass
+        #print(tmp.split(","))
         output.append(tmp.split())
+        #outputt.append(tmp.split())
         k=k+1
         #print(output)
         
-    #print(output)
-    result = sheet.values().update(spreadsheetId=SAMPLE_SPREADSHEET_ID,
-                    range=f"{sheet_name}!H2:H", valueInputOption="USER_ENTERED", body={"values":output}).execute()
+    print(output)
+    #print(outputt)
+    sheet = service.spreadsheets()
+    result = sheet.values().update(spreadsheetId=SAMPLE_SPREADSHEET_ID, range=f"{sheet_name}!H2", valueInputOption="USER_ENTERED", body={"values":output}).execute()
 
 main()
