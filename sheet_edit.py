@@ -185,11 +185,14 @@ def main():
     #print(result['values'])
     for i in result['values']:
         print()
-        tmp = getJiraStatus(i[0])
         try:
             #print(tmp,k,result_H['values'][k])
             if ''.join(result_H['values'][k]).lower() in ("closed", "job-completed"):
+                print(f"{i[0]} is already closed!")
                 tmp = ''.join(result_H['values'][k])
+            else:
+                print(f"checking Jira Status for {i[0]}")
+                tmp = getJiraStatus(i[0])
         except:
             pass
         #print(tmp.split(","))
