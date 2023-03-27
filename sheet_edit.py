@@ -58,18 +58,27 @@ def custom_strftime(format, t):
     return t.strftime(format).replace('{S}', str(t.day) + suffix(t.day))
 
 
-def find_TO(JIRA_ID):
-    query = 'project = "TechOps" AND text ~ "' + JIRA_ID +'"'
+def find_TO(JOB):
+    query = 'project = "TechOps" AND text ~ "' + JOB +'"'
     issues = jira.search_issues(query)
     for issue in issues:
         jiras=(str(issue))
     return jiras
 
-def getJiraStatus(JIRA_ID):
-    to=find_TO(JIRA_ID)
-    print(JIRA_ID,jira.issue(to).raw["fields"]["status"]["name"], to)
-    return jira.issue(to).raw["fields"]["status"]["name"]
-    
+def getJiraStatus(JOB):
+    to = find_TO(JOB)
+    jira_status = jira.issue(to).raw["fields"]["status"]["name"]
+    print(JOB, jira_status, to)
+
+    for row in sheet_state['values'][::-1]:
+        if row[0] == JOB:
+            if row[-1].lower() == "job-completed":
+                print(f"## Skipping as status for {JOB} is JOB-COMPLETED ##\n")
+                jira_status = row[-1]
+            break
+
+    return jira_status
+
 
 def conditional_formatting(spreadsheet_id):
     """
@@ -151,15 +160,16 @@ def conditional_formatting(spreadsheet_id):
 
 output = []
 
-def process_jira_id(jira_id, current_status):
-    status = getJiraStatus(jira_id)
-    current_status.update( {jira_id : status} )
-
+def process_job_id(job, current_status):
+    status = getJiraStatus(job)
+    current_status.update( {job : status} )
 
 
 def main():
-    sheet_name= custom_strftime('{S} %b', datetime.now())
+    global sheet_state
+    sheet_name = custom_strftime('{S} %b', datetime.now())
     print(sheet_name)
+    sheet_name = "26th Mar"
     
 
     # If modifying these scopes, delete the file token.json.
@@ -177,44 +187,31 @@ def main():
 
     # Call the Sheets API
     sheet = service.spreadsheets()
-    job_sheet = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,
-                                range=f"{sheet_name}!B2:B").execute()
-    length = len(job_sheet['values'])
-    sheet_state = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,
-                                range=f"{sheet_name}!H2:H").execute()
-    print("\nStatus on sheet: ", sheet_state["values"])
+    
+    
+    sheet_state = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID, range=f"{sheet_name}!B2:H").execute()
+    
+    job_ids = [row[0] for row in sheet_state['values']]
+    status_sheet = [row[-1] for row in sheet_state['values']]
+    
+    print("\nStatus on sheet: ",status_sheet)
+    print("\nJOBs on sheet: ", job_ids)
+    
     #print(job_sheet.get('values', []))
-    if length == len(sheet_state['values']):
-        if ''.join(sheet_state['values'][length-1]).lower() == "closed":
-            sys.exit("\n\nScript exited. As its fully updated !!!")
-    k=0
-    print("\nJOBs: ", job_sheet['values'])
     
+    total_rows = len(job_ids)
+    closed_count = sum(1 for row in sheet_state['values'] if row[-1].lower() in ("job-completed", "closed"))
     
-    #$%% for i in job_sheet['values']:
-    #$%%     print()
-    #$%%     try:
-    #$%%         #print(tmp,k,sheet_state['values'][k])
-    #$%%         if ''.join(sheet_state['values'][k]).lower() in ("closed", "job-completed"):
-    #$%%             print(f"{i[0]} is already closed!")
-    #$%%             tmp = ''.join(sheet_state['values'][k])
-    #$%%         else:
-    #$%%             print(f"checking Jira Status for {i[0]}")
-    #$%%             tmp = getJiraStatus(i[0])
-    #$%%     except:
-    #$%%         pass
-    #$%%     #print(tmp.split(","))
-    #$%%     output.append(tmp.split())
-    #$%%     k=k+1
-    #$%%     #print(output)
-#
-        
-    # Process JIRA IDs in parallel
-    jira_ids = [row[0] for row in job_sheet.get('values', [])]
+    if closed_count == total_rows:
+        print("\n\nAll jobs have been completed/closed. Exiting the script.")
+        sys.exit()
+    
+    print("\n\n")
+    # Process JOBs in parallel
     threads = []
     current_status = {}
-    for jira_id in jira_ids:
-        thread = Thread(target=process_jira_id, args=(jira_id, current_status))
+    for job_id in job_ids:
+        thread = Thread(target=process_job_id, args=(job_id, current_status))
         thread.start()
         threads.append(thread)
 
@@ -222,8 +219,11 @@ def main():
         thread.join()
     
     # Update spreadsheet with job_sheets
-    for job in job_sheet['values']:
-        output.append([current_status[job[0]]])
+    for job in job_ids:
+        output.append([current_status[job]])
+    
+#    for job in job_sheet['values']:
+#        output.append([current_status[job[0]]])
     
     #values = [[status] for status in output]
     print("\nCurrent Status: ", output)
