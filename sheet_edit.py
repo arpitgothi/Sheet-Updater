@@ -75,6 +75,8 @@ def getJiraStatus(JOB):
             if row[-1].lower() == "job-completed":
                 print(f"## Skipping as status for {JOB} is JOB-COMPLETED ##\n")
                 jira_status = row[-1]
+            else:
+                print("\n")
             break
 
     return jira_status
@@ -169,7 +171,6 @@ def main():
     global sheet_state
     sheet_name = custom_strftime('{S} %b', datetime.now())
     print(sheet_name)
-    sheet_name = "26th Mar"
     
 
     # If modifying these scopes, delete the file token.json.
